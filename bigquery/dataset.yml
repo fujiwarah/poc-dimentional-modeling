@@ -1,0 +1,5 @@
+projects:
+  - id: poc-project
+    datasets:
+      - id: raw
+      - id: dwh
