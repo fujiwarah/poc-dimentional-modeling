@@ -172,11 +172,14 @@ INSERT INTO products (product_name, category_id, unit_price, description) VALUES
 ('Go言語プログラミング', 10, 3300.00, '並行処理とWebサービス開発'),
 ('TypeScript実践ガイド', 10, 3080.00, '型安全なフロントエンド開発'),
 ('Docker & Kubernetes入門', 10, 3520.00, 'コンテナ技術の基礎と応用'),
--- カテゴリ横断の追加商品
+-- カテゴリ横断の追加商品 (8商品で合計50件)
 ('ゲーミングヘッドセット', 6, 12800.00, '7.1ch サラウンド対応'),
+('ポータブル充電器 20000mAh', 5, 6980.00, '大容量モバイルバッテリー'),
 ('メンズダウンジャケット', 7, 19800.00, '撥水加工 軽量ダウン90%'),
 ('レディースコート', 8, 25800.00, 'ウールブレンド ロング丈'),
 ('高級チョコレートBOX', 9, 5400.00, 'ベルギー産 24粒アソート'),
+('抹茶ラテギフトセット', 9, 1980.00, '京都産抹茶使用 10本入'),
+('Rust入門ガイド', 10, 3300.00, 'システムプログラミング入門'),
 ('クラウド設計パターン', 10, 3960.00, 'AWS/GCP/Azure対応');
 
 -- ----- orders (500件): generate_series によるプログラマティック生成 -----
@@ -211,27 +214,36 @@ SELECT
 FROM generate_series(1, 500) AS g;
 
 -- ----- order_items (約1500件): 各注文に1-5明細をランダム生成 -----
--- CTE で各注文の明細数を決定し、商品情報を付与
+-- CTE で各注文の明細数を事前に確定してから展開する
+WITH order_item_counts AS (
+    -- 各注文に 1-5 件の明細数を事前決定（平均 3 件 × 500 注文 = 約 1500 件）
+    SELECT
+        order_id,
+        (floor(random() * 5) + 1)::int AS num_items
+    FROM orders
+),
+expanded AS (
+    -- 決定済みの明細数に基づいて行を展開
+    SELECT
+        oc.order_id,
+        generate_series(1, oc.num_items) AS item_seq
+    FROM order_item_counts oc
+)
 INSERT INTO order_items (order_id, product_id, quantity, unit_price, discount)
 SELECT
-    o.order_id,
-    -- product_id: 1-50 からランダム
-    (floor(random() * 50) + 1)::int AS product_id,
+    e.order_id,
+    p.product_id,
     -- quantity: 1-10
     (floor(random() * 10) + 1)::int AS quantity,
-    -- unit_price: 商品マスタから取得（サブクエリ）
+    -- unit_price: 商品マスタから取得
     p.unit_price,
-    -- discount: 0.00 - 20.00 の範囲（0.5刻みの概算）
+    -- discount: 0.00 - 20.00 の範囲（0.5刻み）
     (floor(random() * 41) * 0.50)::numeric(5,2) AS discount
-FROM orders o
+FROM expanded e
 CROSS JOIN LATERAL (
-    -- 各注文に 1-5 件の明細を生成
-    SELECT generate_series(1, (floor(random() * 5) + 1)::int) AS item_seq
-) items
-JOIN LATERAL (
-    -- ランダムな商品を選択
+    -- ランダムな商品を選択（products テーブルから直接取得するので FK 安全）
     SELECT product_id, unit_price
     FROM products
     ORDER BY random()
     LIMIT 1
-) p ON true;
+) p;
