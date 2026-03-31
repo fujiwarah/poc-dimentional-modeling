@@ -84,9 +84,9 @@ tables: ## dwh データセットの全テーブル一覧を表示
 # Web UI
 # ==============================================================================
 
-ui: ## データ確認用の Web UI を起動 (http://localhost:3000)
+ui: ## データ確認用の Web UI を起動 (http://localhost:3001)
 	docker compose --profile ui up --build -d ui
-	@echo "\n  → http://localhost:3000\n"
+	@echo "\n  → http://localhost:3001\n"
 
 ui-down: ## Web UI を停止
 	docker compose --profile ui stop ui
