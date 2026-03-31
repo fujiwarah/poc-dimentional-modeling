@@ -1,0 +1,4 @@
+psycopg2-binary
+google-cloud-bigquery
+pandas
+db-dtypes

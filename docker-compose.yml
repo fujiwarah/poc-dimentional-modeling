@@ -30,14 +30,24 @@ services:
       timeout: 5s
       retries: 5
 
-  # Sprint 2 以降で el / dbt サービスを追加する
-  # el:
-  #   build: ./el
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     bigquery-emulator:
-  #       condition: service_healthy
+  el:
+    build: ./el
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bigquery-emulator:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ecsite
+      - BIGQUERY_API_ENDPOINT=http://bigquery-emulator:9050
+      - BIGQUERY_PROJECT=poc-project
+      - BIGQUERY_DATASET=raw
+
+  # Sprint 3 以降で dbt サービスを追加する
   # dbt:
   #   build: ./dbt
   #   depends_on:
