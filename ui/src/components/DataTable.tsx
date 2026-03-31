@@ -38,16 +38,16 @@ export default function DataTable({ columns, rows }: Props) {
   if (columns.length === 0) return null;
 
   return (
-    <div className="overflow-auto rounded-lg border border-zinc-800">
+    <div className="overflow-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead>
           {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="border-b border-zinc-800 bg-zinc-900">
+            <tr key={hg.id} className="border-b bg-zinc-50 dark:bg-zinc-900">
               {hg.headers.map((header) => (
                 <th
                   key={header.id}
                   onClick={header.column.getToggleSortingHandler()}
-                  className="px-3 py-2 text-left font-mono text-xs font-medium text-zinc-400 cursor-pointer select-none hover:text-zinc-200 whitespace-nowrap"
+                  className="px-3 py-2 text-left font-mono text-xs font-medium text-zinc-500 dark:text-zinc-400 cursor-pointer select-none hover:text-zinc-800 dark:hover:text-zinc-200 whitespace-nowrap"
                 >
                   {flexRender(
                     header.column.columnDef.header,
@@ -65,12 +65,12 @@ export default function DataTable({ columns, rows }: Props) {
           {table.getRowModel().rows.map((row) => (
             <tr
               key={row.id}
-              className="border-b border-zinc-800/50 hover:bg-zinc-900/50 transition-colors"
+              className="border-b border-zinc-100 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors"
             >
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}
-                  className="px-3 py-1.5 font-mono text-xs whitespace-nowrap text-zinc-300"
+                  className="px-3 py-1.5 font-mono text-xs whitespace-nowrap text-zinc-700 dark:text-zinc-300"
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>

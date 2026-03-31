@@ -4,15 +4,15 @@
 
 @layer base {
   * {
-    @apply border-zinc-800;
+    @apply border-zinc-200 dark:border-zinc-800;
   }
   ::-webkit-scrollbar {
     @apply w-2 h-2;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-zinc-900;
+    @apply bg-zinc-100 dark:bg-zinc-900;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-700 rounded-full;
+    @apply bg-zinc-300 dark:bg-zinc-700 rounded-full;
   }
 }

@@ -7,8 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      if ((localStorage.getItem("theme") ?? "dark") === "dark")
+        document.documentElement.classList.add("dark");
+    </script>
   </head>
-  <body class="bg-zinc-950 text-zinc-100 font-['Inter']">
+  <body class="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-['Inter']">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

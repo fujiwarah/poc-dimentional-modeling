@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   listTables,
   getSchema,
@@ -32,26 +32,23 @@ export default function TableBrowser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // useEffect required: fetch table list from BigQuery Emulator when dataset changes
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+
+  // useEffect required: fetch table list from BigQuery API on dataset change
   useEffect(() => {
-    let cancelled = false;
     setError(null);
     listTables(dataset)
-      .then((t) => {
-        if (cancelled) return;
-        setTables(t);
-        setSelected(null);
-        setSchema([]);
-        setData(null);
-      })
-      .catch((e) => {
-        if (!cancelled)
-          setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then(setTables)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [dataset]);
+
+  const switchDataset = useCallback((ds: string) => {
+    setDataset(ds);
+    setSelected(null);
+    setSchema([]);
+    setData(null);
+  }, []);
 
   const selectTable = useCallback(
     async (tableId: string) => {
@@ -74,19 +71,17 @@ export default function TableBrowser() {
     [dataset, limit],
   );
 
-  const handleLimitChange = useCallback(
-    async (newLimit: number) => {
+  const changeLimit = useCallback(
+    (newLimit: number) => {
       setLimit(newLimit);
-      if (!selected) return;
+      const tableId = selectedRef.current;
+      if (!tableId) return;
       setLoading(true);
-      try {
-        const d = await previewTable(dataset, selected, newLimit);
-        setData(d);
-      } finally {
-        setLoading(false);
-      }
+      previewTable(dataset, tableId, newLimit)
+        .then((d) => setData(d))
+        .finally(() => setLoading(false));
     },
-    [dataset, selected],
+    [dataset],
   );
 
   const groupedTables = useMemo(
@@ -113,16 +108,16 @@ export default function TableBrowser() {
   return (
     <div className="flex gap-4 h-full">
       <div className="w-56 shrink-0 flex flex-col gap-3">
-        <div className="flex bg-zinc-900 rounded-lg p-0.5">
+        <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-lg p-0.5">
           {DATASETS.map((ds) => (
             <button
               key={ds}
-              onClick={() => setDataset(ds)}
+              onClick={() => switchDataset(ds)}
               className={cn(
                 "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
                 dataset === ds
-                  ? "bg-zinc-700 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300",
+                  ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm dark:shadow-none"
+                  : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300",
               )}
             >
               {ds}
@@ -134,7 +129,7 @@ export default function TableBrowser() {
           {GROUP_ORDER.map((group) =>
             groupedTables[group] ? (
               <div key={group}>
-                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                   {group}
                 </div>
                 {groupedTables[group].map((t) => (
@@ -144,8 +139,8 @@ export default function TableBrowser() {
                     className={cn(
                       "w-full text-left px-2 py-1 rounded text-xs font-mono transition-colors truncate",
                       selected === t.tableId
-                        ? "bg-blue-600/20 text-blue-400"
-                        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
+                        ? "bg-blue-100 dark:bg-blue-600/20 text-blue-600 dark:text-blue-400"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200",
                     )}
                   >
                     {t.tableId}
@@ -159,7 +154,7 @@ export default function TableBrowser() {
 
       <div className="flex-1 flex flex-col gap-3 min-w-0">
         {error && (
-          <div className="bg-red-950/50 border border-red-900/50 rounded-lg p-3 text-sm text-red-400 font-mono">
+          <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg p-3 text-sm text-red-600 dark:text-red-400 font-mono">
             {error}
           </div>
         )}
@@ -168,23 +163,23 @@ export default function TableBrowser() {
           <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="font-mono text-sm font-medium text-zinc-200">
+                <h2 className="font-mono text-sm font-medium text-zinc-800 dark:text-zinc-200">
                   {dataset}.{selected}
                 </h2>
                 {data && (
-                  <span className="text-xs text-zinc-600">
+                  <span className="text-xs text-zinc-400 dark:text-zinc-600">
                     {data.totalRows} rows
                   </span>
                 )}
                 {loading && (
-                  <span className="text-xs text-blue-400 animate-pulse">
+                  <span className="text-xs text-blue-500 dark:text-blue-400 animate-pulse">
                     loading...
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex bg-zinc-900 rounded-md p-0.5 text-xs">
+                <div className="flex bg-zinc-100 dark:bg-zinc-900 rounded-md p-0.5 text-xs">
                   {(["data", "schema"] as const).map((t) => (
                     <button
                       key={t}
@@ -192,8 +187,8 @@ export default function TableBrowser() {
                       className={cn(
                         "px-3 py-1 rounded transition-colors capitalize",
                         tab === t
-                          ? "bg-zinc-700 text-zinc-100"
-                          : "text-zinc-500 hover:text-zinc-300",
+                          ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm dark:shadow-none"
+                          : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300",
                       )}
                     >
                       {t}
@@ -204,8 +199,8 @@ export default function TableBrowser() {
                 {tab === "data" && (
                   <select
                     value={limit}
-                    onChange={(e) => handleLimitChange(Number(e.target.value))}
-                    className="bg-zinc-900 border border-zinc-800 rounded-md px-2 py-1 text-xs text-zinc-400"
+                    onChange={(e) => changeLimit(Number(e.target.value))}
+                    className="bg-white dark:bg-zinc-900 border rounded-md px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400"
                   >
                     {[50, 100, 200, 500].map((n) => (
                       <option key={n} value={n}>
@@ -229,7 +224,7 @@ export default function TableBrowser() {
             )}
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
+          <div className="flex items-center justify-center h-full text-zinc-400 dark:text-zinc-600 text-sm">
             ← テーブルを選択してください
           </div>
         )}
