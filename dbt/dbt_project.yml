@@ -13,5 +13,7 @@ models:
   poc_dimensional_modeling:
     staging:
       +materialized: table
+    intermediate:
+      +materialized: table
     marts:
       +materialized: table

@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: int_customers_with_region
+    description: "顧客マスタに full_name と地方区分 (region) を付与"
+    columns:
+      - name: customer_id
+        description: "顧客 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: int_products_with_categories
+    description: "商品マスタにカテゴリ名・親カテゴリ名を非正規化"
+    columns:
+      - name: product_id
+        description: "商品 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: int_orders_with_items
+    description: "注文ヘッダと注文明細を結合し、金額メジャーを計算"
+    columns:
+      - name: order_item_id
+        description: "注文明細 ID"
+        tests:
+          - unique
+          - not_null
