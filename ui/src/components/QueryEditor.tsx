@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { runQueryPage } from "../lib/bq.ts";
+import { useState, useCallback, useRef } from "react";
+import { runQueryPage, type SortOrder } from "../lib/bq.ts";
 import DataTable from "./DataTable.tsx";
 import { usePaginatedQuery } from "../hooks/usePaginatedQuery.ts";
 
@@ -18,14 +18,31 @@ const PAGE_SIZE = 100;
 
 export default function QueryEditor() {
   const [sql, setSql] = useState(SAMPLE_QUERY);
+  const [sort, setSort] = useState<SortOrder | null>(null);
+  const executedSqlRef = useRef("");
   const query = usePaginatedQuery();
 
   const execute = useCallback(() => {
     const snapshot = sql;
+    executedSqlRef.current = snapshot;
+    setSort(null);
     query.execute((page, knownTotal) =>
       runQueryPage(snapshot, page, PAGE_SIZE, knownTotal),
     );
   }, [sql, query.execute]);
+
+  const handleSortChange = useCallback(
+    (newSort: SortOrder | null) => {
+      setSort(newSort);
+      const snapshot = executedSqlRef.current;
+      query.execute(
+        (page, knownTotal) =>
+          runQueryPage(snapshot, page, PAGE_SIZE, knownTotal, newSort ?? undefined),
+        true,
+      );
+    },
+    [query.execute],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -85,6 +102,8 @@ export default function QueryEditor() {
             totalPages: query.result.totalPages,
             onPageChange: query.changePage,
           }}
+          sorting={sort}
+          onSortChange={handleSortChange}
         />
       )}
     </div>

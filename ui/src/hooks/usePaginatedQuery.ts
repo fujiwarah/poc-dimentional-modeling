@@ -16,12 +16,12 @@ export function usePaginatedQuery() {
   const fetcherRef = useRef<Fetcher | null>(null);
   const totalRef = useRef<number | undefined>(undefined);
 
-  const execute = useCallback(async (fetcher: Fetcher) => {
+  const execute = useCallback(async (fetcher: Fetcher, preserveTotal?: boolean) => {
     fetcherRef.current = fetcher;
-    totalRef.current = undefined;
+    if (!preserveTotal) totalRef.current = undefined;
     setState({ result: null, loading: true, error: null });
     try {
-      const result = await fetcher(1);
+      const result = await fetcher(1, totalRef.current);
       totalRef.current = result.totalRows;
       setState({ result, loading: false, error: null });
     } catch (e) {

@@ -24,6 +24,11 @@ export interface PaginatedResult extends QueryResult {
   totalPages: number;
 }
 
+export interface SortOrder {
+  column: string;
+  direction: "asc" | "desc";
+}
+
 export async function listTables(dataset: string): Promise<TableRef[]> {
   const res = await fetch(
     `${BASE}/projects/${PROJECT}/datasets/${dataset}/tables`,
@@ -80,6 +85,11 @@ async function countRows(sql: string): Promise<number> {
   return Number(res.rows[0]?.cnt ?? 0);
 }
 
+function orderByClause(orderBy?: SortOrder): string {
+  if (!orderBy) return "";
+  return ` ORDER BY \`${orderBy.column}\` ${orderBy.direction.toUpperCase()}`;
+}
+
 async function paginateQuery(
   baseSql: string,
   pageSql: string,
@@ -102,10 +112,11 @@ export async function previewTablePage(
   page: number,
   pageSize: number,
   knownTotal?: number,
+  orderBy?: SortOrder,
 ): Promise<PaginatedResult> {
   const baseSql = `SELECT * FROM \`${PROJECT}.${dataset}.${table}\``;
   const offset = (page - 1) * pageSize;
-  return paginateQuery(baseSql, `${baseSql} LIMIT ${pageSize} OFFSET ${offset}`, page, pageSize, knownTotal);
+  return paginateQuery(baseSql, `${baseSql}${orderByClause(orderBy)} LIMIT ${pageSize} OFFSET ${offset}`, page, pageSize, knownTotal);
 }
 
 export async function runQueryPage(
@@ -113,7 +124,8 @@ export async function runQueryPage(
   page: number,
   pageSize: number,
   knownTotal?: number,
+  orderBy?: SortOrder,
 ): Promise<PaginatedResult> {
   const offset = (page - 1) * pageSize;
-  return paginateQuery(sql, `SELECT * FROM (${sql}) AS _q LIMIT ${pageSize} OFFSET ${offset}`, page, pageSize, knownTotal);
+  return paginateQuery(sql, `SELECT * FROM (${sql}) AS _q${orderByClause(orderBy)} LIMIT ${pageSize} OFFSET ${offset}`, page, pageSize, knownTotal);
 }

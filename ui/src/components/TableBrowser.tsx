@@ -5,6 +5,7 @@ import {
   previewTablePage,
   type TableRef,
   type SchemaField,
+  type SortOrder,
 } from "../lib/bq.ts";
 import { cn } from "../lib/cn.ts";
 import DataTable from "./DataTable.tsx";
@@ -26,6 +27,7 @@ interface TableView {
   schema: SchemaField[];
   tab: "schema" | "data";
   pageSize: number;
+  sort: SortOrder | null;
 }
 
 const INITIAL_VIEW: TableView = {
@@ -33,6 +35,7 @@ const INITIAL_VIEW: TableView = {
   schema: [],
   tab: "data",
   pageSize: 100,
+  sort: null,
 };
 
 export default function TableBrowser() {
@@ -57,7 +60,7 @@ export default function TableBrowser() {
     (ds: string) => {
       setDataset(ds);
       setTables([]);
-      setView((v) => ({ ...v, selected: null, schema: [] }));
+      setView((v) => ({ ...v, selected: null, schema: [], sort: null }));
       setError(null);
       query.reset();
     },
@@ -66,13 +69,13 @@ export default function TableBrowser() {
 
   const selectTable = useCallback(
     (tableId: string) => {
-      setView((v) => ({ ...v, selected: tableId, schema: [] }));
+      setView((v) => ({ ...v, selected: tableId, schema: [], sort: null }));
       setError(null);
       getSchema(dataset, tableId)
         .then((s) => setView((v) => ({ ...v, schema: s })))
         .catch((e) => setError(e instanceof Error ? e.message : String(e)));
       query.execute((page, knownTotal) =>
-        previewTablePage(dataset, tableId, page, view.pageSize, knownTotal),
+        previewTablePage(dataset, tableId, page, view.pageSize, knownTotal, undefined),
       );
     },
     [dataset, view.pageSize, query.execute],
@@ -88,6 +91,20 @@ export default function TableBrowser() {
       );
     },
     [dataset, query.execute],
+  );
+
+  const handleSortChange = useCallback(
+    (newSort: SortOrder | null) => {
+      setView((v) => ({ ...v, sort: newSort }));
+      const tableId = selectedRef.current;
+      if (!tableId) return;
+      query.execute(
+        (page, knownTotal) =>
+          previewTablePage(dataset, tableId, page, view.pageSize, knownTotal, newSort ?? undefined),
+        true,
+      );
+    },
+    [dataset, view.pageSize, query.execute],
   );
 
   const groupedTables = useMemo(
@@ -238,6 +255,8 @@ export default function TableBrowser() {
                   totalPages: query.result.totalPages,
                   onPageChange: query.changePage,
                 }}
+                sorting={view.sort}
+                onSortChange={handleSortChange}
               />
             )}
           </>

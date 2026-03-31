@@ -1,13 +1,12 @@
 import {
   useReactTable,
   getCoreRowModel,
-  getSortedRowModel,
   flexRender,
-  type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "../lib/cn.ts";
+import { type SortOrder } from "../lib/bq.ts";
 
 interface PaginationProps {
   page: number;
@@ -21,6 +20,8 @@ interface Props {
   columns: string[];
   rows: Record<string, string>[];
   pagination?: PaginationProps;
+  sorting?: SortOrder | null;
+  onSortChange?: (sort: SortOrder | null) => void;
 }
 
 function getPageNumbers(current: number, total: number): (number | "...")[] {
@@ -36,9 +37,7 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
   return pages;
 }
 
-export default function DataTable({ columns, rows, pagination }: Props) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-
+export default function DataTable({ columns, rows, pagination, sorting, onSortChange }: Props) {
   const columnDefs = useMemo<ColumnDef<Record<string, string>>[]>(
     () =>
       columns.map((col) => ({
@@ -52,10 +51,7 @@ export default function DataTable({ columns, rows, pagination }: Props) {
   const table = useReactTable({
     data: rows,
     columns: columnDefs,
-    state: { sorting },
-    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   if (columns.length === 0) return null;
@@ -74,16 +70,27 @@ export default function DataTable({ columns, rows, pagination }: Props) {
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    onClick={header.column.getToggleSortingHandler()}
-                    className="px-3 py-2 text-left font-mono text-xs font-medium text-zinc-500 dark:text-zinc-400 cursor-pointer select-none hover:text-zinc-800 dark:hover:text-zinc-200 whitespace-nowrap"
+                    onClick={() => {
+                      if (!onSortChange) return;
+                      const col = header.column.id;
+                      if (sorting?.column !== col) onSortChange({ column: col, direction: "asc" });
+                      else if (sorting.direction === "asc") onSortChange({ column: col, direction: "desc" });
+                      else onSortChange(null);
+                    }}
+                    className={cn(
+                      "px-3 py-2 text-left font-mono text-xs font-medium text-zinc-500 dark:text-zinc-400 select-none whitespace-nowrap",
+                      onSortChange
+                        ? "cursor-pointer hover:text-zinc-800 dark:hover:text-zinc-200"
+                        : "cursor-default",
+                    )}
                   >
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext(),
                     )}
-                    {{ asc: " ↑", desc: " ↓" }[
-                      header.column.getIsSorted() as string
-                    ] ?? ""}
+                    {sorting?.column === header.column.id
+                      ? sorting.direction === "asc" ? " ↑" : " ↓"
+                      : ""}
                   </th>
                 ))}
               </tr>
