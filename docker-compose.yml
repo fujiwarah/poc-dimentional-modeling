@@ -58,3 +58,15 @@ services:
       - BIGQUERY_EMULATOR_HOST=bigquery-emulator:9050
       - DBT_PROJECT=poc-project
       - DBT_DATASET=dwh
+
+  ui:
+    build: ./ui
+    profiles: ["ui"]
+    ports:
+      - "8501:8501"
+    depends_on:
+      bigquery-emulator:
+        condition: service_healthy
+    environment:
+      - BIGQUERY_API_ENDPOINT=http://bigquery-emulator:9050
+      - BIGQUERY_PROJECT=poc-project

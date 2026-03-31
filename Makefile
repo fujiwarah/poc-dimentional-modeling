@@ -1,6 +1,6 @@
 .PHONY: up down restart build logs ps \
-       psql bq dbt-run dbt-test dbt-build dbt-docs \
-       el-rerun dbt-rerun \
+       psql bq dbt-run dbt-test dbt-build \
+       el-rerun dbt-rerun ui \
        clean status help
 
 # ==============================================================================
@@ -79,6 +79,17 @@ analysis: ## 分析クエリ（先頭）を実行
 tables: ## dwh データセットの全テーブル一覧を表示
 	@curl -s http://localhost:9050/bigquery/v2/projects/poc-project/datasets/dwh/tables \
 		| jq -r '.tables[].tableReference.tableId' | sort
+
+# ==============================================================================
+# Web UI
+# ==============================================================================
+
+ui: ## データ確認用の Web UI を起動 (http://localhost:8501)
+	docker compose --profile ui up --build -d ui
+	@echo "\n  → http://localhost:8501\n"
+
+ui-down: ## Web UI を停止
+	docker compose --profile ui stop ui
 
 # ==============================================================================
 # Cleanup
