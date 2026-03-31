@@ -231,19 +231,20 @@ expanded AS (
 )
 INSERT INTO order_items (order_id, product_id, quantity, unit_price, discount)
 SELECT
-    e.order_id,
+    sub.order_id,
     p.product_id,
-    -- quantity: 1-10
-    (floor(random() * 10) + 1)::int AS quantity,
-    -- unit_price: 商品マスタから取得
+    sub.quantity,
     p.unit_price,
-    -- discount: 0.00 - 20.00 の範囲（0.5刻み）
-    (floor(random() * 41) * 0.50)::numeric(5,2) AS discount
-FROM expanded e
-CROSS JOIN LATERAL (
-    -- ランダムな商品を選択（products テーブルから直接取得するので FK 安全）
-    SELECT product_id, unit_price
-    FROM products
-    ORDER BY random()
-    LIMIT 1
-) p;
+    sub.discount
+FROM (
+    SELECT
+        e.order_id,
+        -- ランダムな product_id (1-50) を行ごとに個別に算出
+        (floor(random() * 50) + 1)::int AS rand_product_id,
+        -- quantity: 1-10
+        (floor(random() * 10) + 1)::int AS quantity,
+        -- discount: 0.00 - 20.00 の範囲（0.5刻み）
+        (floor(random() * 41) * 0.50)::numeric(5,2) AS discount
+    FROM expanded e
+) sub
+INNER JOIN products p ON p.product_id = sub.rand_product_id;
