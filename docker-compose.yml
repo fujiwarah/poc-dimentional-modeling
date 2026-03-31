@@ -63,10 +63,7 @@ services:
     build: ./ui
     profiles: ["ui"]
     ports:
-      - "8501:8501"
+      - "3000:3000"
     depends_on:
       bigquery-emulator:
         condition: service_healthy
-    environment:
-      - BIGQUERY_API_ENDPOINT=http://bigquery-emulator:9050
-      - BIGQUERY_PROJECT=poc-project
