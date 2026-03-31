@@ -1,5 +1,5 @@
 const BASE = "/bq";
-const PROJECT = "poc-project";
+export const PROJECT = "poc-project";
 
 export interface TableRef {
   datasetId: string;
@@ -55,9 +55,7 @@ export async function runQuery(sql: string): Promise<QueryResult> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(
-      err?.error?.message ?? `Query failed: ${res.status}`,
-    );
+    throw new Error(err?.error?.message ?? `Query failed: ${res.status}`);
   }
   const data = await res.json();
 
@@ -69,4 +67,14 @@ export async function runQuery(sql: string): Promise<QueryResult> {
       Object.fromEntries(row.f.map((cell, i) => [columns[i], cell.v])),
   );
   return { columns, rows, totalRows: Number(data.totalRows ?? 0) };
+}
+
+export async function previewTable(
+  dataset: string,
+  table: string,
+  limit: number,
+): Promise<QueryResult> {
+  return runQuery(
+    `SELECT * FROM \`${PROJECT}.${dataset}.${table}\` LIMIT ${limit}`,
+  );
 }

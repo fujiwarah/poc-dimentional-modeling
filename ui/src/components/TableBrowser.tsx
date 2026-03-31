@@ -1,19 +1,25 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   listTables,
   getSchema,
-  runQuery,
+  previewTable,
   type TableRef,
   type SchemaField,
   type QueryResult,
 } from "../lib/bq.ts";
+import { cn } from "../lib/cn.ts";
 import DataTable from "./DataTable.tsx";
 
 const DATASETS = ["dwh", "raw"] as const;
 
-function classNames(...classes: (string | false | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
-}
+const PREFIX_TO_GROUP: Record<string, string> = {
+  stg: "staging",
+  int: "intermediate",
+  dim: "marts",
+  fact: "marts",
+};
+
+const GROUP_ORDER = ["staging", "intermediate", "marts", "other"];
 
 export default function TableBrowser() {
   const [dataset, setDataset] = useState<string>("dwh");
@@ -24,29 +30,34 @@ export default function TableBrowser() {
   const [tab, setTab] = useState<"schema" | "data">("data");
   const [limit, setLimit] = useState(100);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listTables(dataset).then((t) => {
-      setTables(t);
-      setSelected(null);
-      setSchema([]);
-      setData(null);
-    });
+    setError(null);
+    listTables(dataset)
+      .then((t) => {
+        setTables(t);
+        setSelected(null);
+        setSchema([]);
+        setData(null);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [dataset]);
 
   const selectTable = useCallback(
     async (tableId: string) => {
       setSelected(tableId);
       setLoading(true);
+      setError(null);
       try {
         const [s, d] = await Promise.all([
           getSchema(dataset, tableId),
-          runQuery(
-            `SELECT * FROM \`poc-project.${dataset}.${tableId}\` LIMIT ${limit}`,
-          ),
+          previewTable(dataset, tableId, limit),
         ]);
         setSchema(s);
         setData(d);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading(false);
       }
@@ -54,49 +65,52 @@ export default function TableBrowser() {
     [dataset, limit],
   );
 
-  const reload = useCallback(async () => {
+  useEffect(() => {
     if (!selected) return;
+    let cancelled = false;
     setLoading(true);
-    try {
-      const d = await runQuery(
-        `SELECT * FROM \`poc-project.${dataset}.${selected}\` LIMIT ${limit}`,
-      );
-      setData(d);
-    } finally {
-      setLoading(false);
-    }
+    previewTable(dataset, selected, limit)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [dataset, selected, limit]);
 
-  const groupedTables = tables.reduce<Record<string, TableRef[]>>(
-    (acc, t) => {
-      const prefix = t.tableId.split("_")[0];
-      const group =
-        prefix === "stg"
-          ? "staging"
-          : prefix === "int"
-            ? "intermediate"
-            : prefix === "dim" || prefix === "fact"
-              ? "marts"
-              : "other";
-      (acc[group] ??= []).push(t);
-      return acc;
-    },
-    {},
+  const groupedTables = useMemo(
+    () =>
+      tables.reduce<Record<string, TableRef[]>>((acc, t) => {
+        const prefix = t.tableId.split("_")[0];
+        const group = PREFIX_TO_GROUP[prefix] ?? "other";
+        (acc[group] ??= []).push(t);
+        return acc;
+      }, {}),
+    [tables],
   );
 
-  const groupOrder = ["staging", "intermediate", "marts", "other"];
+  const schemaAsRows = useMemo(
+    () =>
+      schema.map((f) => ({
+        Column: f.name,
+        Type: f.type,
+        Mode: f.mode,
+      })),
+    [schema],
+  );
 
   return (
     <div className="flex gap-4 h-full">
-      {/* Sidebar */}
       <div className="w-56 shrink-0 flex flex-col gap-3">
-        {/* Dataset selector */}
         <div className="flex bg-zinc-900 rounded-lg p-0.5">
           {DATASETS.map((ds) => (
             <button
               key={ds}
               onClick={() => setDataset(ds)}
-              className={classNames(
+              className={cn(
                 "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
                 dataset === ds
                   ? "bg-zinc-700 text-zinc-100"
@@ -108,9 +122,8 @@ export default function TableBrowser() {
           ))}
         </div>
 
-        {/* Table list */}
         <div className="flex flex-col gap-3 overflow-y-auto">
-          {groupOrder.map((group) =>
+          {GROUP_ORDER.map((group) =>
             groupedTables[group] ? (
               <div key={group}>
                 <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
@@ -120,7 +133,7 @@ export default function TableBrowser() {
                   <button
                     key={t.tableId}
                     onClick={() => selectTable(t.tableId)}
-                    className={classNames(
+                    className={cn(
                       "w-full text-left px-2 py-1 rounded text-xs font-mono transition-colors truncate",
                       selected === t.tableId
                         ? "bg-blue-600/20 text-blue-400"
@@ -136,8 +149,13 @@ export default function TableBrowser() {
         </div>
       </div>
 
-      {/* Main area */}
       <div className="flex-1 flex flex-col gap-3 min-w-0">
+        {error && (
+          <div className="bg-red-950/50 border border-red-900/50 rounded-lg p-3 text-sm text-red-400 font-mono">
+            {error}
+          </div>
+        )}
+
         {selected ? (
           <>
             <div className="flex items-center justify-between">
@@ -158,13 +176,12 @@ export default function TableBrowser() {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Tab switch */}
                 <div className="flex bg-zinc-900 rounded-md p-0.5 text-xs">
                   {(["data", "schema"] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setTab(t)}
-                      className={classNames(
+                      className={cn(
                         "px-3 py-1 rounded transition-colors capitalize",
                         tab === t
                           ? "bg-zinc-700 text-zinc-100"
@@ -179,10 +196,7 @@ export default function TableBrowser() {
                 {tab === "data" && (
                   <select
                     value={limit}
-                    onChange={(e) => {
-                      setLimit(Number(e.target.value));
-                      setTimeout(reload, 0);
-                    }}
+                    onChange={(e) => setLimit(Number(e.target.value))}
                     className="bg-zinc-900 border border-zinc-800 rounded-md px-2 py-1 text-xs text-zinc-400"
                   >
                     {[50, 100, 200, 500].map((n) => (
@@ -196,41 +210,10 @@ export default function TableBrowser() {
             </div>
 
             {tab === "schema" && (
-              <div className="overflow-auto rounded-lg border border-zinc-800">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-800 bg-zinc-900">
-                      <th className="px-3 py-2 text-left text-xs font-medium text-zinc-400">
-                        Column
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-zinc-400">
-                        Type
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-zinc-400">
-                        Mode
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {schema.map((f) => (
-                      <tr
-                        key={f.name}
-                        className="border-b border-zinc-800/50 hover:bg-zinc-900/50"
-                      >
-                        <td className="px-3 py-1.5 font-mono text-xs text-zinc-200">
-                          {f.name}
-                        </td>
-                        <td className="px-3 py-1.5 font-mono text-xs text-amber-400/80">
-                          {f.type}
-                        </td>
-                        <td className="px-3 py-1.5 font-mono text-xs text-zinc-500">
-                          {f.mode}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={["Column", "Type", "Mode"]}
+                rows={schemaAsRows}
+              />
             )}
 
             {tab === "data" && data && (
