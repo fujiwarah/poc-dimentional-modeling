@@ -31,12 +31,34 @@ models:
         tests:
           - unique
           - not_null
+      - name: abc_rank
+        description: "ABC分析ランク"
+        tests:
+          - not_null
 
   - name: dim_order_status
     description: "注文ステータスディメンション"
     columns:
       - name: order_status_key
         description: "注文ステータスサロゲートキー"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_time
+    description: "時間帯ディメンション（24行）"
+    columns:
+      - name: time_key
+        description: "時間帯キー (0-23)"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_coupon
+    description: "クーポンディメンション"
+    columns:
+      - name: coupon_key
+        description: "クーポンサロゲートキー"
         tests:
           - unique
           - not_null
@@ -72,3 +94,51 @@ models:
           - relationships:
               to: ref('dim_order_status')
               field: order_status_key
+      - name: time_key
+        description: "時間帯ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+
+  - name: fact_page_views
+    description: "ページビューファクト（粒度: 1PV = 1レコード）"
+    columns:
+      - name: page_view_id
+        description: "ページビューID"
+        tests:
+          - unique
+          - not_null
+      - name: date_key
+        description: "日付ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+      - name: time_key
+        description: "時間帯ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+
+  - name: fact_inventory_daily
+    description: "日次在庫ファクト（粒度: 1商品 x 1日 = 1レコード）"
+    columns:
+      - name: product_key
+        description: "商品ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product')
+              field: product_key
+      - name: date_key
+        description: "日付ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_key

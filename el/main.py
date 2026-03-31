@@ -7,6 +7,7 @@ WRITE_TRUNCATE（洗い替え）でロードする。変換は行わない（Raw
 import json
 import logging
 import sys
+import time
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -40,6 +41,9 @@ TABLE_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
         bigquery.SchemaField("prefecture", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("postal_code", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
+        bigquery.SchemaField("gender", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("birth_date", "DATE", mode="NULLABLE"),
+        bigquery.SchemaField("registration_channel", "STRING", mode="NULLABLE"),
     ],
     "categories": [
         bigquery.SchemaField("category_id", "INT64", mode="REQUIRED"),
@@ -53,6 +57,9 @@ TABLE_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
         bigquery.SchemaField("unit_price", "NUMERIC", mode="REQUIRED"),
         bigquery.SchemaField("description", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
+        bigquery.SchemaField("cost_price", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("weight_gram", "INT64", mode="NULLABLE"),
+        bigquery.SchemaField("is_active", "BOOLEAN", mode="NULLABLE"),
     ],
     "orders": [
         bigquery.SchemaField("order_id", "INT64", mode="REQUIRED"),
@@ -62,6 +69,10 @@ TABLE_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
         bigquery.SchemaField("status", "STRING", mode="REQUIRED"),
         bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
         bigquery.SchemaField("updated_at", "TIMESTAMP", mode="NULLABLE"),
+        bigquery.SchemaField("order_timestamp", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("payment_method", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("device_type", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("coupon_code", "STRING", mode="NULLABLE"),
     ],
     "order_items": [
         bigquery.SchemaField("order_item_id", "INT64", mode="REQUIRED"),
@@ -71,11 +82,41 @@ TABLE_SCHEMAS: dict[str, list[bigquery.SchemaField]] = {
         bigquery.SchemaField("unit_price", "NUMERIC", mode="REQUIRED"),
         bigquery.SchemaField("discount", "NUMERIC", mode="NULLABLE"),
     ],
+    "page_views": [
+        bigquery.SchemaField("page_view_id", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("customer_id", "INT64", mode="NULLABLE"),
+        bigquery.SchemaField("session_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("page_type", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("product_id", "INT64", mode="NULLABLE"),
+        bigquery.SchemaField("category_id", "INT64", mode="NULLABLE"),
+        bigquery.SchemaField("referrer_type", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("view_timestamp", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("duration_seconds", "INT64", mode="NULLABLE"),
+    ],
+    "inventory_snapshots": [
+        bigquery.SchemaField("snapshot_id", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("product_id", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("snapshot_date", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("quantity_on_hand", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("quantity_reserved", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("reorder_point", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("lead_time_days", "INT64", mode="REQUIRED"),
+    ],
+    "coupons": [
+        bigquery.SchemaField("coupon_id", "INT64", mode="REQUIRED"),
+        bigquery.SchemaField("coupon_code", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("coupon_type", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("discount_value", "NUMERIC", mode="REQUIRED"),
+        bigquery.SchemaField("min_order_amount", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("valid_from", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("valid_to", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("campaign_name", "STRING", mode="NULLABLE"),
+    ],
 }
 
 
-def get_pg_connection():
-    """PostgreSQL に接続して connection を返す。"""
+def get_pg_connection(max_retries: int = 30, retry_interval: int = 5):
+    """PostgreSQL に接続して connection を返す。接続失敗時はリトライする。"""
     logger.info(
         "PostgreSQL に接続: host=%s port=%s db=%s user=%s",
         config.POSTGRES_HOST,
@@ -83,14 +124,21 @@ def get_pg_connection():
         config.POSTGRES_DB,
         config.POSTGRES_USER,
     )
-    conn = psycopg2.connect(
-        host=config.POSTGRES_HOST,
-        port=config.POSTGRES_PORT,
-        user=config.POSTGRES_USER,
-        password=config.POSTGRES_PASSWORD,
-        dbname=config.POSTGRES_DB,
-    )
-    return conn
+    for attempt in range(1, max_retries + 1):
+        try:
+            conn = psycopg2.connect(
+                host=config.POSTGRES_HOST,
+                port=config.POSTGRES_PORT,
+                user=config.POSTGRES_USER,
+                password=config.POSTGRES_PASSWORD,
+                dbname=config.POSTGRES_DB,
+            )
+            return conn
+        except psycopg2.OperationalError:
+            if attempt == max_retries:
+                raise
+            logger.warning("PostgreSQL 接続失敗 (試行 %d/%d)。%d秒後にリトライ...", attempt, max_retries, retry_interval)
+            time.sleep(retry_interval)
 
 
 def get_bq_client() -> bigquery.Client:
@@ -182,23 +230,22 @@ def load_table(bq_client: bigquery.Client, table_name: str, rows: list[dict]) ->
             e,
         )
 
-    # 方式 2: フォールバック --- テーブルを作成して insert_rows で挿入
+    # 方式 2: フォールバック --- テーブルを作成して insert_rows で挿入（チャンク分割）
     try:
-        # テーブルを(再)作成して洗い替え
         table_ref = bigquery.Table(table_id, schema=schema)
         bq_client.delete_table(table_id, not_found_ok=True)
         bq_client.create_table(table_ref)
         logger.info("[%s] テーブルを再作成しました", table_name)
 
-        # insert_rows はタプルのリストを受け取る
         column_names = [field.name for field in schema]
-        rows_to_insert = []
-        for row in serialized_rows:
-            rows_to_insert.append({col: row.get(col) for col in column_names})
+        rows_to_insert = [{col: row.get(col) for col in column_names} for row in serialized_rows]
 
-        errors = bq_client.insert_rows_json(table_id, rows_to_insert)
-        if errors:
-            raise RuntimeError(f"insert_rows_json でエラー: {errors}")
+        chunk_size = 10000
+        for i in range(0, len(rows_to_insert), chunk_size):
+            chunk = rows_to_insert[i:i + chunk_size]
+            errors = bq_client.insert_rows_json(table_id, chunk)
+            if errors:
+                raise RuntimeError(f"insert_rows_json でエラー (chunk {i // chunk_size}): {errors}")
 
         logger.info("[%s] insert_rows_json でロード完了", table_name)
         return len(rows_to_insert)

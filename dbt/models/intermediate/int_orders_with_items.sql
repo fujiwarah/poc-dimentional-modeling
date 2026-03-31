@@ -18,6 +18,10 @@ SELECT
     oi.discount_rate,
     oi.unit_price * oi.quantity AS gross_amount,
     (oi.unit_price * oi.quantity) * oi.discount_rate / 100 AS discount_amount,
-    (oi.unit_price * oi.quantity) - ((oi.unit_price * oi.quantity) * oi.discount_rate / 100) AS net_amount
+    (oi.unit_price * oi.quantity) - ((oi.unit_price * oi.quantity) * oi.discount_rate / 100) AS net_amount,
+    o.order_timestamp,
+    o.payment_method,
+    o.device_type,
+    o.coupon_code
 FROM order_items oi
 INNER JOIN orders o ON oi.order_id = o.order_id

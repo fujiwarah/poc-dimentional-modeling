@@ -287,5 +287,5 @@ def _run_sync_query(endpoint, project, sql):
     url = f"{endpoint}/bigquery/v2/projects/{project}/queries"
     data = json.dumps({"query": sql, "useLegacySql": False}).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as resp:
+    with urllib.request.urlopen(req, timeout=600) as resp:
         return json.loads(resp.read().decode("utf-8"))

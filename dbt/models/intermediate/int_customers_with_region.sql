@@ -19,5 +19,16 @@ SELECT
         WHEN prefecture IN ('徳島県', '香川県', '愛媛県', '高知県') THEN '四国'
         WHEN prefecture IN ('福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県') THEN '九州・沖縄'
         ELSE '不明'
-    END AS region
+    END AS region,
+    gender,
+    CASE
+        WHEN birth_date IS NULL THEN '不明'
+        WHEN EXTRACT(YEAR FROM CURRENT_DATE()) - EXTRACT(YEAR FROM birth_date) < 30 THEN '20代'
+        WHEN EXTRACT(YEAR FROM CURRENT_DATE()) - EXTRACT(YEAR FROM birth_date) < 40 THEN '30代'
+        WHEN EXTRACT(YEAR FROM CURRENT_DATE()) - EXTRACT(YEAR FROM birth_date) < 50 THEN '40代'
+        WHEN EXTRACT(YEAR FROM CURRENT_DATE()) - EXTRACT(YEAR FROM birth_date) < 60 THEN '50代'
+        ELSE '60代以上'
+    END AS age_group,
+    registration_channel,
+    created_at
 FROM customers

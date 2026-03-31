@@ -1,12 +1,21 @@
 WITH products AS (
     SELECT * FROM {{ ref('int_products_with_categories') }}
+),
+
+abc AS (
+    SELECT * FROM {{ ref('int_product_abc') }}
 )
 
 SELECT
-    ROW_NUMBER() OVER (ORDER BY product_id) AS product_key,
-    product_id,
-    product_name,
-    category_name,
-    parent_category_name,
-    unit_price
-FROM products
+    p.product_id AS product_key,
+    p.product_id,
+    p.product_name,
+    p.category_name,
+    p.parent_category_name,
+    p.unit_price,
+    p.cost_price,
+    p.gross_margin_pct,
+    p.is_active,
+    COALESCE(a.abc_rank, 'C') AS abc_rank
+FROM products p
+LEFT JOIN abc a ON p.product_id = a.product_id

@@ -7,5 +7,5 @@ poc_dimensional_modeling:
       project: poc-project
       dataset: dwh
       location: US
-      job_execution_timeout_seconds: 300
+      job_execution_timeout_seconds: 600
       job_retries: 1

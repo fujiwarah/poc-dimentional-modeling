@@ -23,6 +23,9 @@ TABLES = [
     "customers",
     "categories",
     "products",
+    "coupons",
     "orders",
     "order_items",
+    "page_views",
+    "inventory_snapshots",
 ]

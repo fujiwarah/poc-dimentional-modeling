@@ -27,3 +27,48 @@ models:
         tests:
           - unique
           - not_null
+
+  - name: int_customer_rfm
+    description: "顧客ごとのRFM指標と5段階スコア・セグメント"
+    columns:
+      - name: customer_id
+        description: "顧客 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: int_customer_ltv
+    description: "顧客ごとの推定LTV"
+    columns:
+      - name: customer_id
+        description: "顧客 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: int_product_abc
+    description: "商品ごとのABC分析ランク"
+    columns:
+      - name: product_id
+        description: "商品 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: int_page_view_sessions
+    description: "セッション単位のページビュー集計"
+    columns:
+      - name: session_id
+        description: "セッション ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: int_inventory_with_sales
+    description: "在庫スナップショットに日次販売データと在庫日数を結合"
+    columns:
+      - name: snapshot_id
+        description: "スナップショット ID"
+        tests:
+          - unique
+          - not_null

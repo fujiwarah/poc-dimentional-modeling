@@ -45,3 +45,30 @@ models:
         tests:
           - unique
           - not_null
+
+  - name: stg_coupons
+    description: "クーポンマスタ staging テーブル"
+    columns:
+      - name: coupon_id
+        description: "クーポン ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_page_views
+    description: "ページビュー staging テーブル"
+    columns:
+      - name: page_view_id
+        description: "ページビュー ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_inventory_snapshots
+    description: "在庫スナップショット staging テーブル"
+    columns:
+      - name: snapshot_id
+        description: "スナップショット ID"
+        tests:
+          - unique
+          - not_null
