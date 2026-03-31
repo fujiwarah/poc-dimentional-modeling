@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
-import { runQuery, type QueryResult } from "../lib/bq.ts";
+import { runQueryPage } from "../lib/bq.ts";
 import DataTable from "./DataTable.tsx";
+import { usePaginatedQuery } from "../hooks/usePaginatedQuery.ts";
 
 const SAMPLE_QUERY = `SELECT
   d.year,
@@ -13,25 +14,18 @@ INNER JOIN dwh.dim_date d ON f.date_key = d.date_key
 GROUP BY 1, 2, 3
 ORDER BY 1, 2`;
 
+const PAGE_SIZE = 100;
+
 export default function QueryEditor() {
   const [sql, setSql] = useState(SAMPLE_QUERY);
-  const [result, setResult] = useState<QueryResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const query = usePaginatedQuery();
 
-  const execute = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await runQuery(sql);
-      setResult(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-      setResult(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [sql]);
+  const execute = useCallback(() => {
+    const snapshot = sql;
+    query.execute((page, knownTotal) =>
+      runQueryPage(snapshot, page, PAGE_SIZE, knownTotal),
+    );
+  }, [sql, query.execute]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -62,25 +56,37 @@ export default function QueryEditor() {
       <div className="flex items-center gap-3">
         <button
           onClick={execute}
-          disabled={loading || !sql.trim()}
+          disabled={query.loading || !sql.trim()}
           className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 rounded-md text-sm font-medium text-white transition-colors"
         >
-          {loading ? "Running..." : "Run"}
+          {query.loading ? "Running..." : "Run"}
         </button>
-        {result && (
+        {query.result && (
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            {result.totalRows} rows
+            {query.result.totalRows} rows
           </span>
         )}
       </div>
 
-      {error && (
+      {query.error && (
         <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-lg p-3 text-sm text-red-600 dark:text-red-400 font-mono whitespace-pre-wrap">
-          {error}
+          {query.error}
         </div>
       )}
 
-      {result && <DataTable columns={result.columns} rows={result.rows} />}
+      {query.result && (
+        <DataTable
+          columns={query.result.columns}
+          rows={query.result.rows}
+          pagination={{
+            page: query.result.page,
+            pageSize: query.result.pageSize,
+            totalRows: query.result.totalRows,
+            totalPages: query.result.totalPages,
+            onPageChange: query.changePage,
+          }}
+        />
+      )}
     </div>
   );
 }

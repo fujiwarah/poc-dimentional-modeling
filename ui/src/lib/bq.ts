@@ -18,6 +18,12 @@ export interface QueryResult {
   totalRows: number;
 }
 
+export interface PaginatedResult extends QueryResult {
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export async function listTables(dataset: string): Promise<TableRef[]> {
   const res = await fetch(
     `${BASE}/projects/${PROJECT}/datasets/${dataset}/tables`,
@@ -69,12 +75,45 @@ export async function runQuery(sql: string): Promise<QueryResult> {
   return { columns, rows, totalRows: Number(data.totalRows ?? 0) };
 }
 
-export async function previewTable(
+async function countRows(sql: string): Promise<number> {
+  const res = await runQuery(`SELECT COUNT(*) AS cnt FROM (${sql})`);
+  return Number(res.rows[0]?.cnt ?? 0);
+}
+
+async function paginateQuery(
+  baseSql: string,
+  pageSql: string,
+  page: number,
+  pageSize: number,
+  knownTotal?: number,
+): Promise<PaginatedResult> {
+  const needsCount = knownTotal === undefined;
+  const [totalRows, data] = await Promise.all([
+    needsCount ? countRows(baseSql) : knownTotal,
+    runQuery(pageSql),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  return { ...data, totalRows, page, pageSize, totalPages };
+}
+
+export async function previewTablePage(
   dataset: string,
   table: string,
-  limit: number,
-): Promise<QueryResult> {
-  return runQuery(
-    `SELECT * FROM \`${PROJECT}.${dataset}.${table}\` LIMIT ${limit}`,
-  );
+  page: number,
+  pageSize: number,
+  knownTotal?: number,
+): Promise<PaginatedResult> {
+  const baseSql = `SELECT * FROM \`${PROJECT}.${dataset}.${table}\``;
+  const offset = (page - 1) * pageSize;
+  return paginateQuery(baseSql, `${baseSql} LIMIT ${pageSize} OFFSET ${offset}`, page, pageSize, knownTotal);
+}
+
+export async function runQueryPage(
+  sql: string,
+  page: number,
+  pageSize: number,
+  knownTotal?: number,
+): Promise<PaginatedResult> {
+  const offset = (page - 1) * pageSize;
+  return paginateQuery(sql, `SELECT * FROM (${sql}) AS _q LIMIT ${pageSize} OFFSET ${offset}`, page, pageSize, knownTotal);
 }
