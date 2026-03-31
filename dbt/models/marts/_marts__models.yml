@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "日付ディメンション"
+    columns:
+      - name: date_key
+        description: "日付キー (YYYYMMDD 形式)"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_customer
+    description: "顧客ディメンション"
+    columns:
+      - name: customer_key
+        description: "顧客サロゲートキー"
+        tests:
+          - unique
+          - not_null
+      - name: region
+        description: "地方区分"
+        tests:
+          - not_null
+
+  - name: dim_product
+    description: "商品ディメンション"
+    columns:
+      - name: product_key
+        description: "商品サロゲートキー"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_order_status
+    description: "注文ステータスディメンション"
+    columns:
+      - name: order_status_key
+        description: "注文ステータスサロゲートキー"
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_sales
+    description: "売上ファクト（粒度: 注文明細 1 行 = 1 レコード）"
+    columns:
+      - name: customer_key
+        description: "顧客ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_key
+      - name: product_key
+        description: "商品ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product')
+              field: product_key
+      - name: date_key
+        description: "日付ディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+      - name: order_status_key
+        description: "注文ステータスディメンションへの FK"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_order_status')
+              field: order_status_key

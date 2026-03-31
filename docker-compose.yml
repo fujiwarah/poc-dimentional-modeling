@@ -47,9 +47,14 @@ services:
       - BIGQUERY_PROJECT=poc-project
       - BIGQUERY_DATASET=raw
 
-  # Sprint 3 以降で dbt サービスを追加する
-  # dbt:
-  #   build: ./dbt
-  #   depends_on:
-  #     el:
-  #       condition: service_completed_successfully
+  dbt:
+    build: ./dbt
+    depends_on:
+      el:
+        condition: service_completed_successfully
+      bigquery-emulator:
+        condition: service_healthy
+    environment:
+      - BIGQUERY_EMULATOR_HOST=bigquery-emulator:9050
+      - DBT_PROJECT=poc-project
+      - DBT_DATASET=dwh

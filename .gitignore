@@ -1,0 +1,5 @@
+.harness/
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+__pycache__/

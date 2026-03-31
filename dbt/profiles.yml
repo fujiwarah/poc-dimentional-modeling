@@ -1,0 +1,11 @@
+poc_dimensional_modeling:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: poc-project
+      dataset: dwh
+      location: US
+      job_execution_timeout_seconds: 300
+      job_retries: 1

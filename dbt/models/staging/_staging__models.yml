@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "顧客マスタ staging テーブル"
+    columns:
+      - name: customer_id
+        description: "顧客 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_categories
+    description: "商品カテゴリ staging テーブル"
+    columns:
+      - name: category_id
+        description: "カテゴリ ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_products
+    description: "商品マスタ staging テーブル"
+    columns:
+      - name: product_id
+        description: "商品 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_orders
+    description: "注文ヘッダ staging テーブル"
+    columns:
+      - name: order_id
+        description: "注文 ID"
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_order_items
+    description: "注文明細 staging テーブル"
+    columns:
+      - name: order_item_id
+        description: "注文明細 ID"
+        tests:
+          - unique
+          - not_null
