@@ -1,20 +1,38 @@
-import { useState } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import TableBrowser from "./components/TableBrowser.tsx";
-import QueryEditor from "./components/QueryEditor.tsx";
 import { cn } from "./lib/cn.ts";
 import { PROJECT } from "./lib/bq.ts";
 import { useTheme } from "./hooks/useTheme.ts";
 
-type Tab = "browse" | "query";
+const QueryEditor = lazy(() => import("./components/QueryEditor.tsx"));
+const SchemaViewer = lazy(() => import("./components/SchemaViewer.tsx"));
+const Dashboard = lazy(() => import("./components/Dashboard.tsx"));
+
+type Tab = "browse" | "query" | "schema" | "dashboard";
 
 const TABS = [
   ["browse", "Browse"],
   ["query", "Query"],
+  ["schema", "Schema"],
+  ["dashboard", "Dashboard"],
 ] as const;
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center h-full text-sm text-blue-500 dark:text-blue-400 animate-pulse">
+      loading...
+    </div>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("browse");
   const { theme, toggle } = useTheme();
+
+  const navigateToBrowse = useCallback((tableId: string) => {
+    setTab("browse");
+    void tableId;
+  }, []);
 
   return (
     <div className="h-screen flex flex-col">
@@ -61,8 +79,12 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-hidden p-4">
-        {tab === "browse" && <TableBrowser />}
-        {tab === "query" && <QueryEditor />}
+        <Suspense fallback={<TabFallback />}>
+          {tab === "browse" && <TableBrowser />}
+          {tab === "query" && <QueryEditor />}
+          {tab === "schema" && <SchemaViewer onNavigateToBrowse={navigateToBrowse} />}
+          {tab === "dashboard" && <Dashboard />}
+        </Suspense>
       </main>
     </div>
   );

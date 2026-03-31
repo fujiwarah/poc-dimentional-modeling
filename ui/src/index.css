@@ -6,6 +6,11 @@
   * {
     @apply border-zinc-200 dark:border-zinc-800;
   }
+  .react-flow__node-tableNode {
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
   ::-webkit-scrollbar {
     @apply w-2 h-2;
   }
