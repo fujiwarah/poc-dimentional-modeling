@@ -32,16 +32,25 @@ export default function TableBrowser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // useEffect required: fetch table list from BigQuery Emulator when dataset changes
   useEffect(() => {
+    let cancelled = false;
     setError(null);
     listTables(dataset)
       .then((t) => {
+        if (cancelled) return;
         setTables(t);
         setSelected(null);
         setSchema([]);
         setData(null);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [dataset]);
 
   const selectTable = useCallback(
@@ -65,21 +74,20 @@ export default function TableBrowser() {
     [dataset, limit],
   );
 
-  useEffect(() => {
-    if (!selected) return;
-    let cancelled = false;
-    setLoading(true);
-    previewTable(dataset, selected, limit)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [dataset, selected, limit]);
+  const handleLimitChange = useCallback(
+    async (newLimit: number) => {
+      setLimit(newLimit);
+      if (!selected) return;
+      setLoading(true);
+      try {
+        const d = await previewTable(dataset, selected, newLimit);
+        setData(d);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [dataset, selected],
+  );
 
   const groupedTables = useMemo(
     () =>
@@ -196,7 +204,7 @@ export default function TableBrowser() {
                 {tab === "data" && (
                   <select
                     value={limit}
-                    onChange={(e) => setLimit(Number(e.target.value))}
+                    onChange={(e) => handleLimitChange(Number(e.target.value))}
                     className="bg-zinc-900 border border-zinc-800 rounded-md px-2 py-1 text-xs text-zinc-400"
                   >
                     {[50, 100, 200, 500].map((n) => (
