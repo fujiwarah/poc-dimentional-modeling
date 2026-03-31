@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env
+    volumes:
+      - ./postgres/init/:/docker-entrypoint-initdb.d/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  bigquery-emulator:
+    image: ghcr.io/goccy/bigquery-emulator:latest
+    ports:
+      - "9050:9050"
+      - "9060:9060"
+    command: >
+      --project=poc-project
+      --data-from-yaml=/data/dataset.yml
+    volumes:
+      - ./bigquery/dataset.yml:/data/dataset.yml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9050 || nc -z localhost 9050"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Sprint 2 以降で el / dbt サービスを追加する
+  # el:
+  #   build: ./el
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     bigquery-emulator:
+  #       condition: service_healthy
+  # dbt:
+  #   build: ./dbt
+  #   depends_on:
+  #     el:
+  #       condition: service_completed_successfully
