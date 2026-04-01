@@ -51,18 +51,18 @@ const ROLE_STYLE: Record<ColumnRole, { badge: string; cls: string }> = {
   attribute: { badge: "", cls: "" },
 };
 
-const TYPE_BORDER: Record<TableType, string> = {
-  fact: "border-l-blue-500 dark:border-l-blue-400",
-  dim: "border-l-violet-500 dark:border-l-violet-400",
-  stg: "border-l-zinc-400 dark:border-l-zinc-500",
-  int: "border-l-teal-500 dark:border-l-teal-400",
+const TYPE_BG: Record<TableType, string> = {
+  fact: "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-[#0c1a2e] dark:to-[#0f1530]",
+  dim: "bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-[#150c2e] dark:to-[#1a0c2e]",
+  stg: "bg-gradient-to-br from-zinc-50 to-slate-50 dark:from-[#18181b] dark:to-[#1a1c23]",
+  int: "bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-[#0c2420] dark:to-[#0c2e1e]",
 };
 
 const TYPE_BADGE: Record<TableType, string> = {
-  fact: "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-  dim: "bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400",
-  stg: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",
-  int: "bg-teal-50 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400",
+  fact: "bg-gradient-to-r from-blue-500 to-indigo-500 text-white",
+  dim: "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white",
+  stg: "bg-gradient-to-r from-zinc-400 to-slate-400 text-white",
+  int: "bg-gradient-to-r from-teal-500 to-emerald-500 text-white",
 };
 
 const TYPE_MINIMAP_COLOR: Record<TableType, string> = {
@@ -100,9 +100,9 @@ const TableNode = memo(function TableNode({
     <div
       onDoubleClick={() => onNavigate(table.id)}
       className={cn(
-        "rounded-lg border border-l-4 shadow-sm transition-opacity duration-200 select-none",
-        "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700",
-        TYPE_BORDER[table.tableType],
+        "rounded-lg border shadow-sm transition-opacity duration-200 select-none",
+        "border-zinc-200 dark:border-zinc-700",
+        TYPE_BG[table.tableType],
         dimmed && "opacity-15",
         highlighted && "ring-2 ring-blue-400 dark:ring-blue-500",
       )}
