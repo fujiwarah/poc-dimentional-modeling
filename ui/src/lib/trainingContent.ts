@@ -207,7 +207,6 @@ ORDER BY type, table_name`,
           "fact_sales テーブルの内容を見て、計測値（Measures）と外部キー（FK）を区別してみましょう。quantity, net_amount, gross_profit が計測値、*_key が外部キーです。",
         sql: `-- fact_sales の先頭10行を確認
 SELECT
-  sales_key,
   date_key, time_key, customer_key, product_key,
   order_id, order_item_id,
   quantity, unit_price, discount_rate,
@@ -232,7 +231,7 @@ LIMIT 10`,
           "このDWHには3種類のファクトテーブルがあります。それぞれの粒度（1行が何を表すか）と計測値を確認しましょう。",
         sql: `-- 各ファクトテーブルのサンプルを比較
 -- 1. トランザクションファクト: 注文明細（1行 = 1注文1商品）
-SELECT 'fact_sales' AS fact_table, sales_key, order_id, quantity, net_amount
+SELECT 'fact_sales' AS fact_table, order_id, order_item_id, quantity, net_amount
 FROM dwh.fact_sales LIMIT 3`,
         hint: "fact_page_views（ページビュー）や fact_inventory_daily（日次在庫）も確認してみましょう。Queryタブで自由にSQLを実行できます。",
       },
@@ -577,8 +576,8 @@ LIMIT 15`,
         sql: `-- 月別の売上件数とページビュー数を並べて確認
 SELECT
   d.year, d.month, d.month_name,
-  COUNT(DISTINCT fs.sales_key) AS sales_count,
-  COUNT(DISTINCT fp.page_view_key) AS page_view_count
+  COUNT(DISTINCT fs.order_item_id) AS sales_count,
+  COUNT(DISTINCT fp.page_view_id) AS page_view_count
 FROM dwh.dim_date d
 LEFT JOIN dwh.fact_sales fs ON d.date_key = fs.date_key
 LEFT JOIN dwh.fact_page_views fp ON d.date_key = fp.date_key
@@ -788,7 +787,7 @@ SELECT
   f.discount_rate,
   f.net_amount
 FROM dwh.fact_sales f
-JOIN dwh.dim_coupon c ON f.coupon_key = c.coupon_key
+JOIN dwh.dim_coupon c ON f.coupon_code = c.coupon_code
 WHERE c.coupon_code != 'N/A'
 LIMIT 10`,
         hint: "現在は coupon_key が直接 fact_sales にあるため、多対1です。複数クーポンを許可するなら bridge_order_coupon テーブルが必要になります。",
