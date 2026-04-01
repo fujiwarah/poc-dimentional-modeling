@@ -7,14 +7,16 @@ import { useTheme } from "./hooks/useTheme.ts";
 const QueryEditor = lazy(() => import("./components/QueryEditor.tsx"));
 const SchemaViewer = lazy(() => import("./components/SchemaViewer.tsx"));
 const Dashboard = lazy(() => import("./components/Dashboard.tsx"));
+const Training = lazy(() => import("./components/Training.tsx"));
 
-type Tab = "browse" | "query" | "schema" | "dashboard";
+type Tab = "browse" | "query" | "schema" | "dashboard" | "training";
 
 const TABS = [
   ["browse", "Browse"],
   ["query", "Query"],
   ["schema", "Schema"],
   ["dashboard", "Dashboard"],
+  ["training", "Training"],
 ] as const;
 
 function TabFallback() {
@@ -84,6 +86,7 @@ export default function App() {
           {tab === "query" && <QueryEditor />}
           {tab === "schema" && <SchemaViewer onNavigateToBrowse={navigateToBrowse} />}
           {tab === "dashboard" && <Dashboard />}
+          {tab === "training" && <Training />}
         </Suspense>
       </main>
     </div>
