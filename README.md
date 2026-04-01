@@ -65,7 +65,7 @@ make down
 
 起動後の流れ:
 
-1. **PostgreSQL** — DDL 実行 + シードデータ投入（EC サイトを模した約 70,000 件。`scripts/generate_seed.py` で生成）
+1. **PostgreSQL** — DDL 実行 + シードデータ投入（EC サイトを模した約 53,000 件。`scripts/generate_seed.py` で生成）
 2. **BigQuery Emulator** — `raw` / `dwh` データセットを初期化
 3. **EL (Python)** — PostgreSQL → BigQuery Emulator `raw` データセットにロード（8 テーブル）
 4. **dbt** — `raw` → `dwh` に Star Schema を構築（25 モデル + 73 テスト）
@@ -83,9 +83,13 @@ make help          # コマンド一覧を表示
 | `make up` | 全サービスを起動（初回はビルド込み） |
 | `make down` | 全サービスを停止しデータも削除 |
 | `make restart` | クリーンスタート（down → up） |
+| `make build` | イメージのリビルドのみ（起動しない） |
 | `make ps` | コンテナの状態を表示 |
 | `make logs` | 全サービスのログを表示 |
+| `make logs-el` | EL サービスのログのみ表示 |
+| `make logs-dbt` | dbt サービスのログのみ表示 |
 | `make status` | dbt の実行結果サマリーを表示 |
+| `make clean` | コンテナ・ボリューム・ビルドキャッシュを削除 |
 
 ### データベースアクセス
 
@@ -116,8 +120,11 @@ make help          # コマンド一覧を表示
 
 `make ui` で http://localhost:3001 にアクセスすると、ブラウザ上で BigQuery Emulator のデータを確認できます。
 
-- **Browse タブ** — データセット（dwh / raw）を切り替え、テーブル選択でスキーマ・データを閲覧
-- **Query タブ** — SQL エディタで任意のクエリを実行（⌘+Enter）
+- **Browse タブ** — データセット（dwh / raw）を切り替え、テーブル選択でスキーマ・データを閲覧（ページネーション・ソート対応）
+- **Query タブ** — SQL エディタで任意のクエリを実行（⌘+Enter）。テンプレート・実行履歴・テーブル/チャート表示切替
+- **Schema タブ** — ReactFlow によるインタラクティブなスキーマ可視化。テーブル種別（Fact/Dimension/Staging/Intermediate）の色分け、PK/FK/メジャー等のカラムロールバッジ、レイヤー別フィルタリング
+- **Dashboard タブ** — 8 種の事前構築済み分析チャート（月別売上推移、カテゴリ別売上、RFM セグメント分布、ABC 分析、ファネル分析、地域別売上、時間帯別注文パターン、決済手段構成）
+- **Training タブ** — ディメンショナルモデリングのインタラクティブ学習。レッスン形式のテキスト・図解・SQL 演習問題
 
 通常の `make up` では起動されません（オプショナル）。
 
@@ -273,7 +280,8 @@ dbt-bigquery は標準では BigQuery Emulator への接続をサポートして
 | DWH | BigQuery Emulator (goccy/bigquery-emulator) |
 | EL | Python 3.12 + psycopg2 + google-cloud-bigquery |
 | Transform | dbt-core + dbt-bigquery |
-| Web UI | React 19 + TypeScript + Vite + Tailwind CSS |
+| Web UI | React 19 + TypeScript 5 + Vite 8 + Tailwind CSS |
+| UI ライブラリ | Recharts（チャート）, ReactFlow（スキーマ可視化）, CodeMirror 6（SQL エディタ）, TanStack Table（テーブル表示） |
 | インフラ | Docker Compose |
 
 ## ポート一覧
