@@ -1,9 +1,11 @@
 import { listTables, getSchema, type SchemaField } from "./bq.ts";
+import lineageGraph from "virtual:dbt-lineage";
 
 export type ColumnRole = "pk" | "fk" | "degenerate" | "measure" | "attribute";
-export type TableType = "fact" | "dim" | "stg" | "int";
+export type TableType = "raw" | "stg" | "int" | "dim" | "fact";
+export type EdgeKind = "fk" | "ref" | "source";
 
-export const LAYER_ORDER: TableType[] = ["stg", "int", "dim", "fact"];
+export const LAYER_ORDER: TableType[] = ["raw", "stg", "int", "dim", "fact"];
 
 export interface InferredColumn {
   name: string;
@@ -23,7 +25,8 @@ export interface InferredRelationship {
   id: string;
   sourceTable: string;
   targetTable: string;
-  fkColumn: string;
+  fkColumn?: string;
+  edgeKind: EdgeKind;
 }
 
 export interface InferredSchema {
@@ -72,24 +75,43 @@ function classifyColumn(
   return { ...field, role: "attribute" };
 }
 
-export async function fetchAndInferSchema(
-  dataset: string,
-): Promise<InferredSchema> {
-  const tableRefs = await listTables(dataset);
+export async function fetchAndInferSchema(): Promise<InferredSchema> {
+  const [rawTableRefs, dwhTableRefs] = await Promise.all([
+    listTables("raw"),
+    listTables("dwh"),
+  ]);
 
-  const relevant = tableRefs.filter((t) => classifyTable(t.tableId) !== null);
+  const dwhRelevant = dwhTableRefs.filter(
+    (t) => classifyTable(t.tableId) !== null,
+  );
   const dimTableIds = new Set(
-    relevant.filter((t) => t.tableId.startsWith("dim_")).map((t) => t.tableId),
+    dwhRelevant
+      .filter((t) => t.tableId.startsWith("dim_"))
+      .map((t) => t.tableId),
   );
 
-  const schemas = await Promise.all(
-    relevant.map(async (t) => ({
-      tableId: t.tableId,
-      fields: await getSchema(dataset, t.tableId),
-    })),
-  );
+  const [rawSchemas, dwhSchemas] = await Promise.all([
+    Promise.all(
+      rawTableRefs.map(async (t) => ({
+        tableId: t.tableId,
+        fields: await getSchema("raw", t.tableId),
+      })),
+    ),
+    Promise.all(
+      dwhRelevant.map(async (t) => ({
+        tableId: t.tableId,
+        fields: await getSchema("dwh", t.tableId),
+      })),
+    ),
+  ]);
 
-  const tables: InferredTable[] = schemas.map(({ tableId, fields }) => {
+  const rawTables: InferredTable[] = rawSchemas.map(({ tableId, fields }) => ({
+    id: tableId,
+    tableType: "raw" as const,
+    columns: fields.map((f: SchemaField): InferredColumn => ({ ...f, role: "attribute" })),
+  }));
+
+  const dwhTables: InferredTable[] = dwhSchemas.map(({ tableId, fields }) => {
     const tableType = classifyTable(tableId)!;
     const pkColumn = inferPkColumn(tableId);
     const columns = fields.map((f) =>
@@ -98,22 +120,123 @@ export async function fetchAndInferSchema(
     return { id: tableId, tableType, columns };
   });
 
+  const tables = [...rawTables, ...dwhTables];
+  const tableIds = new Set(tables.map((t) => t.id));
+
+  // FK relationships (existing logic, fact → dim)
   const relationships: InferredRelationship[] = [];
-  for (const table of tables) {
+  const edgePairs = new Set<string>();
+
+  for (const table of dwhTables) {
     for (const col of table.columns) {
       if (col.role === "fk" && col.refTable) {
+        const pairKey = [table.id, col.refTable].sort().join("|");
+        edgePairs.add(pairKey);
         relationships.push({
           id: `${table.id}__${col.name}`,
           sourceTable: table.id,
           targetTable: col.refTable,
           fkColumn: col.name,
+          edgeKind: "fk",
         });
       }
     }
   }
 
+  // Lineage relationships from dbt ref()/source()
+  for (const [model, deps] of Object.entries(lineageGraph)) {
+    if (!tableIds.has(model)) continue;
+
+    for (const ref of deps.refs) {
+      if (!tableIds.has(ref)) continue;
+      const pairKey = [model, ref].sort().join("|");
+      if (edgePairs.has(pairKey)) continue;
+      edgePairs.add(pairKey);
+
+      relationships.push({
+        id: `${ref}__ref__${model}`,
+        sourceTable: ref,
+        targetTable: model,
+        edgeKind: "ref",
+      });
+    }
+
+    for (const source of deps.sources) {
+      if (!tableIds.has(source)) continue;
+      const pairKey = [model, source].sort().join("|");
+      if (edgePairs.has(pairKey)) continue;
+      edgePairs.add(pairKey);
+
+      relationships.push({
+        id: `${source}__src__${model}`,
+        sourceTable: source,
+        targetTable: model,
+        edgeKind: "source",
+      });
+    }
+  }
+
   return { tables, relationships };
 }
+
+// --- Transitive highlight ---
+
+export function computeTransitiveHighlight(
+  schema: InferredSchema,
+  selectedId: string,
+): { nodeIds: Set<string>; edgeIds: Set<string> } {
+  const nodeIds = new Set<string>([selectedId]);
+  const edgeIds = new Set<string>();
+
+  // Build directed adjacency based on dependency semantics:
+  //   FK edges: sourceTable (fact) depends on targetTable (dim)
+  //   ref/source edges: targetTable depends on sourceTable
+  // "upstreamOf" maps a node to its dependencies (what it consumes)
+  // "downstreamOf" maps a node to its dependents (what consumes it)
+  const upstreamOf = new Map<string, { edgeId: string; node: string }[]>();
+  const downstreamOf = new Map<string, { edgeId: string; node: string }[]>();
+
+  for (const rel of schema.relationships) {
+    const dependent = rel.edgeKind === "fk" ? rel.sourceTable : rel.targetTable;
+    const dependency = rel.edgeKind === "fk" ? rel.targetTable : rel.sourceTable;
+
+    if (!upstreamOf.has(dependent)) upstreamOf.set(dependent, []);
+    upstreamOf.get(dependent)!.push({ edgeId: rel.id, node: dependency });
+
+    if (!downstreamOf.has(dependency)) downstreamOf.set(dependency, []);
+    downstreamOf.get(dependency)!.push({ edgeId: rel.id, node: dependent });
+  }
+
+  // BFS upstream (find all data sources)
+  const upQueue = [selectedId];
+  while (upQueue.length > 0) {
+    const current = upQueue.shift()!;
+    for (const { edgeId, node } of upstreamOf.get(current) ?? []) {
+      edgeIds.add(edgeId);
+      if (!nodeIds.has(node)) {
+        nodeIds.add(node);
+        upQueue.push(node);
+      }
+    }
+  }
+
+  // BFS downstream (find all data consumers)
+  const downQueue = [selectedId];
+  while (downQueue.length > 0) {
+    const current = downQueue.shift()!;
+    for (const { edgeId, node } of downstreamOf.get(current) ?? []) {
+      edgeIds.add(edgeId);
+      if (!nodeIds.has(node)) {
+        nodeIds.add(node);
+        downQueue.push(node);
+      }
+    }
+  }
+
+  return { nodeIds, edgeIds };
+}
+
+// --- Layout ---
 
 const NODE_W = 240;
 const H_GAP = 80;
@@ -139,18 +262,29 @@ export function computeLayout(
   const positions = new Map<string, { x: number; y: number }>();
   const visible = schema.tables.filter((t) => visibleLayers.has(t.tableType));
 
-  const facts = visible.filter((t) => t.tableType === "fact");
-  const dims = visible.filter((t) => t.tableType === "dim");
+  const raws = visible.filter((t) => t.tableType === "raw");
   const stgs = visible.filter((t) => t.tableType === "stg");
   const ints = visible.filter((t) => t.tableType === "int");
+  const facts = visible.filter((t) => t.tableType === "fact");
+  const dims = visible.filter((t) => t.tableType === "dim");
 
+  // FK-based dimension-to-fact mapping (only visible facts count)
+  const visibleFactIds = new Set(facts.map((f) => f.id));
   const dimToFacts = new Map<string, Set<string>>();
   for (const dim of dims) dimToFacts.set(dim.id, new Set());
-  for (const rel of schema.relationships)
-    dimToFacts.get(rel.targetTable)?.add(rel.sourceTable);
+  for (const rel of schema.relationships) {
+    if (rel.edgeKind === "fk" && visibleFactIds.has(rel.sourceTable)) {
+      dimToFacts.get(rel.targetTable)?.add(rel.sourceTable);
+    }
+  }
 
   const factXMap = new Map<string, number>();
   let currentY = 40;
+
+  if (raws.length > 0) {
+    placeRow(raws, currentY, positions);
+    currentY += NODE_H + V_GAP;
+  }
 
   if (stgs.length > 0) {
     placeRow(stgs, currentY, positions);
@@ -193,13 +327,15 @@ export function computeLayout(
       currentY += NODE_H + V_GAP;
     }
 
-    // Two-pass sort: initial alphabetical, then re-sort by connected fact position
-    topDims.sort((a, b) => avgFactX(a.id) - avgFactX(b.id));
-    bottomDims.sort((a, b) => avgFactX(a.id) - avgFactX(b.id));
+    // Two-pass: re-sort dims by connected fact X position, then re-place
+    if (facts.length > 0) {
+      topDims.sort((a, b) => avgFactX(a.id) - avgFactX(b.id));
+      bottomDims.sort((a, b) => avgFactX(a.id) - avgFactX(b.id));
 
-    if (topDims.length > 0) {
-      const topY = (positions.get(facts[0]?.id ?? "")?.y ?? currentY) - NODE_H - V_GAP;
-      placeRow(topDims, topY, positions);
+      if (topDims.length > 0) {
+        const topY = positions.get(facts[0].id)!.y - NODE_H - V_GAP;
+        placeRow(topDims, topY, positions);
+      }
     }
 
     if (bottomDims.length > 0) {

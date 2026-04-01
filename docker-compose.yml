@@ -60,7 +60,9 @@ services:
       - DBT_DATASET=dwh
 
   ui:
-    build: ./ui
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
     profiles: ["ui"]
     ports:
       - "3001:3000"
