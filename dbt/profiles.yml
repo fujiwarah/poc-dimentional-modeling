@@ -8,5 +8,5 @@ poc_dimensional_modeling:
       dataset: dwh
       location: US
       job_execution_timeout_seconds: 600
-      threads: 8
+      threads: 1
       job_retries: 1

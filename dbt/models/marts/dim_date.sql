@@ -13,13 +13,14 @@ date_range AS (
     FROM all_dates
 ),
 
+-- BigQuery Emulator は GENERATE_ARRAY の動的引数をサポートしないため、
+-- リテラル配列の CROSS JOIN で 0-999 の連番を生成してフィルタリング
+n AS (SELECT n FROM UNNEST([0,1,2,3,4,5,6,7,8,9]) AS n),
+
 date_spine AS (
-    SELECT
-        DATE_ADD(dr.min_date, INTERVAL seq DAY) AS full_date
-    FROM date_range dr
-    CROSS JOIN UNNEST(
-        GENERATE_ARRAY(0, DATE_DIFF(dr.max_date, dr.min_date, DAY))
-    ) AS seq
+    SELECT DATE_ADD(dr.min_date, INTERVAL (a.n * 100 + b.n * 10 + c.n) DAY) AS full_date
+    FROM date_range dr, n AS a, n AS b, n AS c
+    WHERE a.n * 100 + b.n * 10 + c.n <= DATE_DIFF(dr.max_date, dr.min_date, DAY)
 )
 
 SELECT

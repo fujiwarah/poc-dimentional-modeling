@@ -279,7 +279,13 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
 
 export default function Training() {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
   const lesson = LESSONS[selectedIndex];
+
+  const navigateTo = (index: number) => {
+    setSelectedIndex(index);
+    contentRef.current?.scrollTo({ top: 0 });
+  };
 
   return (
     <div className="flex gap-4 h-full">
@@ -293,7 +299,7 @@ export default function Training() {
           {LESSONS.map((l, i) => (
             <li key={l.id}>
               <button
-                onClick={() => setSelectedIndex(i)}
+                onClick={() => navigateTo(i)}
                 className={cn(
                   "w-full text-left px-3 py-2 rounded-md transition-colors",
                   selectedIndex === i
@@ -313,19 +319,19 @@ export default function Training() {
         </ul>
       </nav>
 
-      <div className="flex-1 overflow-y-auto rounded-lg border bg-white dark:bg-zinc-950 p-6">
+      <div ref={contentRef} className="flex-1 overflow-y-auto rounded-lg border bg-white dark:bg-zinc-950 p-6">
         <LessonContent lesson={lesson} />
 
         <div className="flex justify-between mt-8 pt-4 border-t">
           <button
-            onClick={() => setSelectedIndex((i) => i - 1)}
+            onClick={() => navigateTo(selectedIndex - 1)}
             disabled={selectedIndex === 0}
             className="px-4 py-1.5 text-sm rounded-md border text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 transition-colors"
           >
             Previous
           </button>
           <button
-            onClick={() => setSelectedIndex((i) => i + 1)}
+            onClick={() => navigateTo(selectedIndex + 1)}
             disabled={selectedIndex === LESSONS.length - 1}
             className="px-4 py-1.5 text-sm rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 transition-colors"
           >
